@@ -31,7 +31,9 @@ void * ts_malloc_lock(size_t size) {
   // int sbrk_lock = 0;
 
   // void * p = bf_malloc(size, sbrk_lock);
-  void * p = bf_malloc(size, 0);
+
+  //void * p = bf_malloc(size, 0);
+  void * p = bf_malloc(size, 0, head_lock);
 
   //void * p = bf_malloc(size);
   pthread_mutex_unlock(&lock);
@@ -40,7 +42,7 @@ void * ts_malloc_lock(size_t size) {
 
 void ts_free_lock(void * ptr) {
   pthread_mutex_lock(&lock);
-  bf_free(ptr);
+  bf_free(ptr, head_lock);
   pthread_mutex_unlock(&lock);
 }
 
@@ -48,15 +50,15 @@ void * ts_malloc_nolock(size_t size) {
   // int sbrk_lock = 1;
   // void * p = bf_malloc(size, sbrk_lock);
 
-  void * p = bf_malloc(size, 1);
+  void * p = bf_malloc(size, 1, head_unlock);
   return p;
 }
 
 void ts_free_nolock(void * ptr) {
-  bf_free(ptr);
+  bf_free(ptr, head_unlock);
 }
 
-void * reuse_block(size_t size, Metadata * trav, int sbrk_lock) {
+void * reuse_block(size_t size, Metadata * trav, int sbrk_lock, Metadata* head) {
 //void * reuse_block(size_t size, Metadata * trav) {
 
   if (trav == NULL){
@@ -67,11 +69,11 @@ void * reuse_block(size_t size, Metadata * trav, int sbrk_lock) {
   else{
 
     if (trav->size - size <= sizeof(Metadata)){
-      remove_from_ll(trav);
+      remove_from_ll(trav, head);
     }
     else{
       
-      remove_from_ll(trav);//next and previous set to null, but size still unchanged Metadata* p = (void*)trav + sizeof(Metadata) + size;
+      remove_from_ll(trav, head);//next and previous set to null, but size still unchanged Metadata* p = (void*)trav + sizeof(Metadata) + size;
       
       Metadata* p = (void*)trav + sizeof(Metadata) + size;
       p->next = NULL;
@@ -80,8 +82,8 @@ void * reuse_block(size_t size, Metadata * trav, int sbrk_lock) {
 
       trav->size = size;//modified after used
       
-      add_to_ll(p);
-      check_adjacent(p);
+      add_to_ll(p, head);
+      check_adjacent(p, head);
   
       
     }
@@ -119,7 +121,7 @@ void * allocate_new_block(size_t size, int sbrk_lock) {
 
 }
 
-void add_to_ll(Metadata * p) {
+void add_to_ll(Metadata * p, Metadata* head) {
 
   data_segment_free += p->size + sizeof(Metadata);
 
@@ -164,7 +166,7 @@ void add_to_ll(Metadata * p) {
 
 }
 
-void remove_from_ll(Metadata * p) {
+void remove_from_ll(Metadata * p, Metadata* head) {
 
   data_segment_free -= p->size + sizeof(Metadata);
 
@@ -193,13 +195,13 @@ void remove_from_ll(Metadata * p) {
 }
 
 
-void check_adjacent(Metadata* curr){
+void check_adjacent(Metadata* curr, Metadata* head){
 
     if (curr->next != NULL && (void*) curr + sizeof(Metadata) + curr->size == (void*) curr->next){
         
         curr->size += curr->next->size + sizeof(Metadata);
         data_segment_free += curr->next->size + sizeof(Metadata);//compensate for removal later
-        remove_from_ll(curr->next);
+        remove_from_ll(curr->next, head);
         //data_segment_free += curr->next->size + sizeof(Metadata);//core dump!
         
     }
@@ -209,24 +211,24 @@ void check_adjacent(Metadata* curr){
 
         curr->prev->size += curr->size + sizeof(Metadata);
         data_segment_free += curr->size + sizeof(Metadata);
-        remove_from_ll(curr);
+        remove_from_ll(curr, head);
         
 
     }
 
 }
 
-void ff_free(void * ptr) {
+void ff_free(void * ptr, Metadata* head) {
 
   Metadata * p = (void*)ptr - sizeof(Metadata);
 
-  add_to_ll(p);
+  add_to_ll(p, head);
 
-  check_adjacent(p);
+  check_adjacent(p, head);
 
 }
 
-void * bf_malloc(size_t size, int sbrk_lock) {
+void * bf_malloc(size_t size, int sbrk_lock, Metadata* head) {
 //void * bf_malloc(size_t size) {
 
 
@@ -241,7 +243,7 @@ void * bf_malloc(size_t size, int sbrk_lock) {
   while (trav != NULL){
 
     if (trav->size == size){
-      remove_from_ll(trav);
+      remove_from_ll(trav, head);
       return (void*)trav + sizeof(Metadata);
       
     }
@@ -263,14 +265,14 @@ void * bf_malloc(size_t size, int sbrk_lock) {
 
   }
 
-  return reuse_block(size, theNode, sbrk_lock);
+  return reuse_block(size, theNode, sbrk_lock, head);
   //return reuse_block(size, theNode);
   
 
 }
 
-void bf_free(void * ptr) {
-  return ff_free(ptr);
+void bf_free(void * ptr, Metadata* head) {
+  return ff_free(ptr, head);
 }
 
 unsigned long get_data_segment_size() {
