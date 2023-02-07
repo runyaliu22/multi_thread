@@ -14,7 +14,7 @@ struct node {
 
 typedef struct node Metadata;
 
-Metadata * head = NULL;
+__thread Metadata * head = NULL;
 
 
 
