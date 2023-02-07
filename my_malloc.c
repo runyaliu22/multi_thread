@@ -7,6 +7,7 @@
 
 
 
+
 // void * ff_malloc(size_t size) {
 
 //   // if (head == NULL){
@@ -27,9 +28,10 @@
 void * ts_malloc_lock(size_t size) {
   pthread_mutex_lock(&lock);
   
-  int sbrk_lock = 0;
+  // int sbrk_lock = 0;
 
-  void * p = bf_malloc(size, sbrk_lock);
+  // void * p = bf_malloc(size, sbrk_lock);
+  void * p = bf_malloc(size, 0);
 
   //void * p = bf_malloc(size);
   pthread_mutex_unlock(&lock);
@@ -43,8 +45,10 @@ void ts_free_lock(void * ptr) {
 }
 
 void * ts_malloc_nolock(size_t size) {
-  int sbrk_lock = 1;
-  void * p = bf_malloc(size, sbrk_lock);
+  // int sbrk_lock = 1;
+  // void * p = bf_malloc(size, sbrk_lock);
+
+  void * p = bf_malloc(size, 1);
   return p;
 }
 
